@@ -15,8 +15,13 @@ class adc(object):
     return out
 
   def read(self):
-    with open(self.sysfs, 'r') as f:
-      f.read()
+    val = None
+    while not val:
+      try:
+        with open(self.sysfs, 'r') as f:
+          val = f.read()
+      except:
+        pass
     val = None
     # Read a second time to ensure we get the current value (bug in ADC driver)
     while not val:
