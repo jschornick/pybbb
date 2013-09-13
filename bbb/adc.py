@@ -22,13 +22,16 @@ class adc(object):
           val = f.read()
       except:
         pass
-    val = None
-    # Read a second time to ensure we get the current value (bug in ADC driver)
-    while not val:
-      try:
-        with open(self.sysfs, 'r') as f:
-          val = f.read()
-      except:
-        pass
+
+    # No longer seems to be necessary with the bone26+ kernels?
+    # val = None
+    # # Read a second time to ensure we get the current value (bug in ADC driver)
+    # while not val:
+    #   try:
+    #     with open(self.sysfs, 'r') as f:
+    #       val = f.read()
+    #   except:
+    #     pass
+
     return int(val)
 
