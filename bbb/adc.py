@@ -1,33 +1,62 @@
 """ Access ADCs vias SysFS interface """
 
 import glob
+import os
 
-class adc(object):
+class ADC(object):
 
-  def __init__(self, num, repeat=8):
-    self.num = num
-    # need to read a glob here, since numbering is not consistent
-    # TODO: verify num is reasonable (0-6)
-    self.sysfs = glob.glob('/sys/devices/ocp.*/helper.*/AIN' + str(num))[0]
-    self.repeat = repeat
+    def __init__(self, num, repeat=8, source='iio'):
+        """Initalize the ADC for reading via a sysfs source"""
+        if not (0 <= num <= 6):
+            raise ValueError('ADC num must be 0-6')
+        self.num = num
+        self.repeat = repeat
+        self.source = source
+        if source == 'iio':
+            self.sysfs = "/sys/bus/iio/devices/iio:device0/in_voltage" + str(num) + "_raw"
+            self.scale = 4096
+        elif source == 'ocp':
+            # need to read a glob here, since device numbering is not consistent
+            self.sysfs = glob.glob("/sys/devices/ocp.*/helper.*/AIN" + str(num))[0]
+            self.scale = 1800
+        else:
+            raise ValueError('Bad sysfs source')
 
-  def __str__(self):
-    out = "ADC#%d (%s)" % (self.num, self.sysfs)
-    return out
+    def __str__(self):
+        out = "ADC#%d (%s)" % (self.num, self.source)
+        return out
 
-  def read(self, repeat=None):
+    @property
+    def mV(self):
+        # calculate from raw value for a little extra precision
+        return self.raw()*(1800.0/self.scale)
 
-    if not repeat:
-        repeat = self.repeat
+    @property
+    def volts(self):
+        # calculate from raw value for a little extra precision
+        return self.raw()*(1.8/self.scale)
 
-    for i in range(repeat):
-        val = None
-        while not val:
-          try:
-            with open(self.sysfs, 'r') as f:
-              val = f.read()
-          except:
-            pass
+    def raw(self, repeat=None):
+        """Raw ADC value read via sysfs entry
 
-    return int(val)
+        Approximately 100Hz when using 8x reads (1.25ms/ea)
+
+        """
+        if not repeat:
+            repeat = self.repeat
+        # repeat read multiple times to handle ADC driver bug that returns
+        # stale values
+        for i in range(repeat):
+            val = None
+            fd = os.open(self.sysfs, os.O_RDONLY)
+            while not val:
+                try:
+                    # ~10% faster than using File.read()
+                    val = os.read(fd,4)
+                # resource can be temporarily unavailable
+                except (IOError, OSError):
+                    pass
+            os.close(fd)
+        #print val
+        return int(val)
 
